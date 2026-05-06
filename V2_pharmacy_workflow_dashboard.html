@@ -1,0 +1,237 @@
+
+<h2 class="sr-only" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);">Pharmacy workflow dashboard — upload pharmacy_data.csv to explore stock, returns, shortages, workload, pick accuracy, and dispensing error metrics across hospital units and medication types.</h2>
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font-sans)}
+.topbar{display:flex;align-items:center;gap:10px;padding:12px 16px;background:var(--color-background-primary);border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);margin-bottom:1rem;flex-wrap:wrap}
+.topbar strong{font-size:14px;font-weight:500}
+.status{font-size:11px;color:var(--color-text-success);margin-left:auto}
+.filters{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 14px;background:var(--color-background-secondary);border-radius:var(--border-radius-md);margin-bottom:1rem;font-size:12px;color:var(--color-text-secondary)}
+.filters label{font-weight:500}
+.filters select{font-size:12px;padding:3px 6px;border-radius:6px;border:0.5px solid var(--color-border-secondary);background:var(--color-background-primary);color:var(--color-text-primary)}
+.kpi-row{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-bottom:1rem}
+.kpi{background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:11px 13px}
+.kpi-label{font-size:10px;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px}
+.kpi-val{font-size:19px;font-weight:500;color:var(--color-text-primary)}
+.kpi-val.warn{color:#E24B4A}
+.kpi-val.ok{color:#1D9E75}
+.kpi-val.amber{color:#BA7517}
+.section-label{font-size:10px;font-weight:500;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:.06em;margin:1rem 0 .5rem;padding-bottom:4px;border-bottom:0.5px solid var(--color-border-tertiary)}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px}
+.g31{display:grid;grid-template-columns:2fr 1fr;gap:10px;margin-bottom:10px}
+.card{background:var(--color-background-primary);border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);padding:14px}
+.ct{font-size:10px;font-weight:500;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px}
+.placeholder{text-align:center;padding:3rem 1rem;color:var(--color-text-tertiary);font-size:13px}
+.placeholder i{font-size:36px;display:block;margin-bottom:10px}
+.legend{display:flex;flex-wrap:wrap;gap:10px;font-size:11px;color:var(--color-text-secondary);margin-bottom:10px}
+.legend span{display:flex;align-items:center;gap:4px}
+.lsq{width:9px;height:9px;border-radius:2px;display:inline-block}
+input[type="file"]{font-size:12px;color:var(--color-text-secondary)}
+</style>
+
+<div>
+  <div class="topbar">
+    <i class="ti ti-building-hospital" style="font-size:18px;color:var(--color-text-secondary)" aria-hidden="true"></i>
+    <strong>Pharmacy workflow dashboard</strong>
+    <input type="file" id="csvUploader" accept=".csv">
+    <span class="status" id="status"></span>
+  </div>
+
+  <div id="filter-bar" style="display:none" class="filters">
+    <label>Unit</label>
+    <select id="fUnit"><option value="">All units</option></select>
+    <label style="margin-left:8px">Medication type</label>
+    <select id="fType"><option value="">All types</option></select>
+    <label style="margin-left:8px">Weekday</label>
+    <select id="fDay"><option value="">All days</option><option>Monday</option><option>Tuesday</option><option>Wednesday</option><option>Thursday</option><option>Friday</option></select>
+    <button onclick="applyFilters()" style="margin-left:8px;font-size:12px;padding:4px 10px">Apply ↗</button>
+    <button onclick="clearFilters()" style="font-size:12px;padding:4px 10px">Reset</button>
+  </div>
+
+  <div id="main">
+    <div class="placeholder"><i class="ti ti-upload" aria-hidden="true"></i>Upload pharmacy_data.csv to explore the data</div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script>
+const C={blue:'#378ADD',gray:'#B4B2A9',red:'#E24B4A',teal:'#1D9E75',amber:'#EF9F27',purple:'#7F77DD',coral:'#D85A30',pink:'#D4537E',green:'#639922',navy:'#185FA5'};
+const PALETTE=Object.values(C);
+let allData=[],charts={};
+
+function destroyAll(){Object.values(charts).forEach(c=>c.destroy());charts={};}
+
+document.getElementById('csvUploader').addEventListener('change',function(e){
+  Papa.parse(e.target.files[0],{header:true,dynamicTyping:true,skipEmptyLines:true,complete:function(r){
+    allData=r.data;
+    document.getElementById('status').innerText='✓ '+allData.length+' rows loaded';
+    populateFilters();
+    document.getElementById('filter-bar').style.display='flex';
+    render(allData);
+  }});
+});
+
+function populateFilters(){
+  const units=[...new Set(allData.map(r=>r.Unit))].sort();
+  const types=[...new Set(allData.map(r=>r.MedicationType))].sort();
+  const uSel=document.getElementById('fUnit');
+  const tSel=document.getElementById('fType');
+  units.forEach(u=>{const o=document.createElement('option');o.value=u;o.text=u;uSel.appendChild(o);});
+  types.forEach(t=>{const o=document.createElement('option');o.value=t;o.text=t;tSel.appendChild(o);});
+}
+
+function applyFilters(){
+  let d=allData;
+  const u=document.getElementById('fUnit').value;
+  const t=document.getElementById('fType').value;
+  const day=document.getElementById('fDay').value;
+  if(u) d=d.filter(r=>r.Unit===u);
+  if(t) d=d.filter(r=>r.MedicationType===t);
+  if(day) d=d.filter(r=>r.Weekday===day);
+  render(d);
+}
+function clearFilters(){
+  document.getElementById('fUnit').value='';
+  document.getElementById('fType').value='';
+  document.getElementById('fDay').value='';
+  render(allData);
+}
+
+function avg(data,key){return data.length?+(data.reduce((s,r)=>s+(+r[key]||0),0)/data.length).toFixed(1):0;}
+function sum(data,key){return data.reduce((s,r)=>s+(+r[key]||0),0);}
+function uniq(data,key){return[...new Set(data.map(r=>r[key]))].sort();}
+function groupBy(data,key){
+  const m={};
+  data.forEach(r=>{if(!m[r[key]])m[r[key]]=[];m[r[key]].push(r);});
+  return m;
+}
+
+function mkChart(id,type,labels,datasets,opts){
+  if(charts[id])charts[id].destroy();
+  charts[id]=new Chart(document.getElementById(id),{type,data:{labels,datasets},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},...opts}});
+}
+
+function render(data){
+  destroyAll();
+  if(!data.length){document.getElementById('main').innerHTML='<div class="placeholder"><i class="ti ti-alert-circle" aria-hidden="true"></i>No data matches filters</div>';return;}
+
+  const totalDel=sum(data,'Delivered'), totalRet=sum(data,'Returned');
+  const retRate=totalDel?Math.round(totalRet/totalDel*100):0;
+  const shortages=data.filter(r=>r.Shortage==='Yes').length;
+  const shortPct=Math.round(shortages/data.length*100);
+  const avgStock=Math.round(avg(data,'StockLevel'));
+  const avgWork=Math.round(avg(data,'WorkloadMin'));
+  const avgPick=avg(data,'PickAccuracy_pct');
+  const avgErr=avg(data,'ErrorRate_per100');
+
+  const dates=uniq(data,'Date');
+  const units=uniq(data,'Unit');
+  const types=uniq(data,'MedicationType');
+  const days=['Monday','Tuesday','Wednesday','Thursday','Friday'];
+
+  document.getElementById('main').innerHTML=`
+<div class="kpi-row">
+  <div class="kpi"><div class="kpi-label">Avg stock level</div><div class="kpi-val ${avgStock<30?'warn':avgStock>70?'ok':'amber'}">${avgStock}%</div></div>
+  <div class="kpi"><div class="kpi-label">Shortage rate</div><div class="kpi-val ${shortPct>15?'warn':''}">${shortPct}%</div></div>
+  <div class="kpi"><div class="kpi-label">Return rate</div><div class="kpi-val ${retRate>25?'warn':retRate<10?'ok':'amber'}">${retRate}%</div></div>
+  <div class="kpi"><div class="kpi-label">Avg workload</div><div class="kpi-val">${avgWork} min</div></div>
+  <div class="kpi"><div class="kpi-label">Pick accuracy</div><div class="kpi-val ${avgPick>97?'ok':avgPick<93?'warn':''}">${avgPick}%</div></div>
+  <div class="kpi"><div class="kpi-label">Error rate</div><div class="kpi-val ${avgErr>3?'warn':avgErr<1.5?'ok':'amber'}">${avgErr}/100</div></div>
+</div>
+
+<div class="legend">
+  ${Object.entries({Delivered:C.blue,Returned:C.gray,Shortages:C.red,Workload:C.amber,'Pick accuracy':C.teal,'Error rate':C.coral,'Stock level':C.purple,'Inv. adjustment':C.pink}).map(([k,v])=>`<span><span class="lsq" style="background:${v}"></span>${k}</span>`).join('')}
+</div>
+
+<div class="section-label">Stock &amp; Supply</div>
+<div class="g2">
+  <div class="card"><div class="ct">Stock level over time (avg across units)</div><div style="position:relative;height:190px"><canvas id="cStock" role="img" aria-label="Average daily stock level trend"></canvas></div></div>
+  <div class="card"><div class="ct">Avg stock level by unit</div><div style="position:relative;height:190px"><canvas id="cStockUnit" role="img" aria-label="Average stock level per hospital unit"></canvas></div></div>
+</div>
+
+<div class="section-label">Dispensing &amp; Returns</div>
+<div class="g2">
+  <div class="card"><div class="ct">Delivered vs returned by medication type</div><div style="position:relative;height:190px"><canvas id="cDelRet" role="img" aria-label="Delivered vs returned quantities per medication type"></canvas></div></div>
+  <div class="card"><div class="ct">Return rate by unit (%)</div><div style="position:relative;height:190px"><canvas id="cRetUnit" role="img" aria-label="Return rate percentage per hospital unit"></canvas></div></div>
+</div>
+<div class="g31">
+  <div class="card"><div class="ct">Daily dispensing volume trend</div><div style="position:relative;height:170px"><canvas id="cDispDay" role="img" aria-label="Daily total dispensing volumes over time"></canvas></div></div>
+  <div class="card"><div class="ct">Days supply dispensed</div><div style="position:relative;height:170px"><canvas id="cDaysSupply" role="img" aria-label="Distribution of days supply per dispensing event"></canvas></div></div>
+</div>
+
+<div class="section-label">Shortages &amp; Workload</div>
+<div class="g3">
+  <div class="card"><div class="ct">Shortage events by unit</div><div style="position:relative;height:180px"><canvas id="cShort" role="img" aria-label="Number of shortage events per unit"></canvas></div></div>
+  <div class="card"><div class="ct">Shortage rate by medication type</div><div style="position:relative;height:180px"><canvas id="cShortType" role="img" aria-label="Shortage rate per medication type"></canvas></div></div>
+  <div class="card"><div class="ct">Avg workload by weekday</div><div style="position:relative;height:180px"><canvas id="cWorkDay" role="img" aria-label="Average workload minutes per weekday"></canvas></div></div>
+</div>
+
+<div class="section-label">Quality &amp; Accuracy</div>
+<div class="g2">
+  <div class="card"><div class="ct">Pick accuracy by unit (%)</div><div style="position:relative;height:180px"><canvas id="cPick" role="img" aria-label="Pick accuracy percentage by hospital unit"></canvas></div></div>
+  <div class="card"><div class="ct">Avg time in storage (days) by medication type</div><div style="position:relative;height:180px"><canvas id="cStorage" role="img" aria-label="Average days in storage per medication type"></canvas></div></div>
+</div>`;
+
+  // 1. Stock over time
+  mkChart('cStock','line',dates,
+    [{data:dates.map(d=>Math.round(avg(data.filter(r=>r.Date===d),'StockLevel'))),borderColor:C.purple,backgroundColor:C.purple+'18',fill:true,tension:0.4,pointRadius:0}],
+    {scales:{y:{min:0,max:100,ticks:{callback:v=>v+'%'}}}});
+
+  // 2. Stock by unit
+  mkChart('cStockUnit','bar',units,
+    [{data:units.map(u=>Math.round(avg(data.filter(r=>r.Unit===u),'StockLevel'))),backgroundColor:units.map((_,i)=>PALETTE[i%PALETTE.length])}],
+    {scales:{y:{min:0,max:100,ticks:{callback:v=>v+'%'}},x:{ticks:{font:{size:10}}}}});
+
+  // 3. Delivered vs returned by type
+  mkChart('cDelRet','bar',types,
+    [{label:'Delivered',backgroundColor:C.blue,data:types.map(t=>sum(data.filter(r=>r.MedicationType===t),'Delivered'))},
+     {label:'Returned',backgroundColor:C.gray,data:types.map(t=>sum(data.filter(r=>r.MedicationType===t),'Returned'))}],
+    {scales:{x:{ticks:{font:{size:9},maxRotation:30}}}});
+
+  // 4. Return rate by unit
+  mkChart('cRetUnit','bar',units,
+    [{data:units.map(u=>{const rows=data.filter(r=>r.Unit===u);const d=sum(rows,'Delivered');return d?Math.round(sum(rows,'Returned')/d*100):0;}),backgroundColor:C.gray}],
+    {scales:{y:{max:60,ticks:{callback:v=>v+'%'}},x:{ticks:{font:{size:10}}}}});
+
+  // 5. Daily dispensing volume
+  mkChart('cDispDay','line',dates,
+    [{data:dates.map(d=>sum(data.filter(r=>r.Date===d),'Delivered')),borderColor:C.blue,backgroundColor:C.blue+'18',fill:true,tension:0.3,pointRadius:0},
+     {data:dates.map(d=>sum(data.filter(r=>r.Date===d),'Returned')),borderColor:C.gray,backgroundColor:C.gray+'18',fill:true,tension:0.3,pointRadius:0}],{});
+
+  // 6. Days supply donut
+  const dsCounts={};data.forEach(r=>{const k=r.DaysSupply+'d';dsCounts[k]=(dsCounts[k]||0)+1;});
+  const dsLabels=Object.keys(dsCounts).sort();
+  mkChart('cDaysSupply','doughnut',dsLabels,
+    [{data:dsLabels.map(k=>dsCounts[k]),backgroundColor:[C.blue,C.teal,C.amber]}],
+    {plugins:{legend:{display:true,position:'bottom',labels:{font:{size:11},boxWidth:12}}}});
+
+  // 7. Shortages by unit
+  mkChart('cShort','bar',units,
+    [{data:units.map(u=>data.filter(r=>r.Unit===u&&r.Shortage==='Yes').length),backgroundColor:C.red}],
+    {scales:{x:{ticks:{font:{size:10}}}}});
+
+  // 8. Shortage rate by type
+  mkChart('cShortType','bar',types,
+    [{data:types.map(t=>{const rows=data.filter(r=>r.MedicationType===t);return rows.length?Math.round(rows.filter(r=>r.Shortage==='Yes').length/rows.length*100):0;}),backgroundColor:C.coral}],
+    {scales:{y:{ticks:{callback:v=>v+'%'}},x:{ticks:{font:{size:9},maxRotation:30}}}});
+
+  // 9. Workload by weekday (Mon-Fri pattern)
+  const wlByDay=days.map(day=>{const rows=data.filter(r=>r.Weekday===day);return rows.length?Math.round(avg(rows,'WorkloadMin')):null;});
+  mkChart('cWorkDay','bar',days,
+    [{data:wlByDay,backgroundColor:days.map((_,i)=>i===0?C.amber:C.amber+'88')}],
+    {scales:{y:{ticks:{callback:v=>v+' min'}}}});
+
+  // 10. Pick accuracy by unit
+  mkChart('cPick','bar',units,
+    [{data:units.map(u=>+avg(data.filter(r=>r.Unit===u),'PickAccuracy_pct')),backgroundColor:units.map(u=>avg(data.filter(r=>r.Unit===u),'PickAccuracy_pct')<95?C.red:C.teal)}],
+    {scales:{y:{min:85,max:100,ticks:{callback:v=>v+'%'}},x:{ticks:{font:{size:10}}}}});
+
+  // 11. Time in storage by type
+  mkChart('cStorage','bar',types,
+    [{data:types.map(t=>+avg(data.filter(r=>r.MedicationType===t),'AvgTimeInStorage_days')),backgroundColor:C.pink}],
+    {scales:{y:{ticks:{callback:v=>v+'d'}},x:{ticks:{font:{size:9},maxRotation:30}}}});
+}
+</script>
