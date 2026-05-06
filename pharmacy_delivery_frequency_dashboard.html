@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pharmacy Delivery Dashboard</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <style>
+        /* Shared styles from pharmacy_delivery_frequency_dashboard.html[cite: 1] */
+        :root { --font-sans: 'Inter', sans-serif; --color-bg: #f8fafc; }
+        body { font-family: var(--font-sans); background: var(--color-bg); padding: 20px; }
+        .dash { max-width: 1100px; margin: 0 auto; }
+        .topbar { display: flex; align-items: center; gap: 12px; margin-bottom: 1.5rem; background: white; padding: 15px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 1.25rem; }
+        .kpi { background: white; border-radius: 8px; padding: 15px; border: 1px solid #e2e8f0; }
+        .kpi-label { font-size: 11px; color: #64748b; text-transform: uppercase; }
+        .kpi-val { font-size: 22px; font-weight: 600; }
+        .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+        .card { background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; }
+        .card-title { font-size: 12px; font-weight: 600; color: #64748b; margin-bottom: 15px; text-transform: uppercase; }
+        .chart-box { height: 200px; position: relative; }
+        input[type="file"] { font-size: 13px; }
+    </style>
+</head>
+<body>
+
+<div class="dash">
+    <div class="topbar">
+        <strong>Pharmacy Data Connection</strong>
+        <input type="file" id="csvUploader" accept=".csv">
+        <span id="status" style="font-size: 12px; color: #1d9e75;"></span>
+    </div>
+
+    <div class="kpi-row">
+        <div class="kpi"><div class="kpi-label">Avg Stock Level</div><div class="kpi-val" id="kpi-stock">--</div></div>
+        <div class="kpi"><div class="kpi-label">Total Shortages</div><div class="kpi-val" id="kpi-shortage" style="color:#E24B4A">--</div></div>
+        <div class="kpi"><div class="kpi-label">Avg Return Rate</div><div class="kpi-val" id="kpi-return">--</div></div>
+        <div class="kpi"><div class="kpi-label">Avg Workload</div><div class="kpi-val" id="kpi-work">--</div></div>
+    </div>
+
+    <div class="grid2">
+        <div class="card">
+            <div class="card-title">Stock Trend per Unit</div>
+            <div class="chart-box"><canvas id="stockChart"></canvas></div>
+        </div>
+        <div class="card">
+            <div class="card-title">Delivered vs Returned</div>
+            <div class="chart-box"><canvas id="returnChart"></canvas></div>
+        </div>
+    </div>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>

@@ -1,0 +1,10 @@
+Date,Unit,MedicationType,StockLevel,Delivered,Returned,Shortage,WorkloadMin
+2026-05-01,Cardiology,Antibiotics,82,45,5,No,45
+2026-05-01,Surgery,Analgesics,15,60,12,Yes,55
+2026-05-02,Cardiology,Cardiovascular,61,30,8,No,40
+2026-05-02,Orthopaedics,Antibiotics,90,25,2,No,35
+2026-05-03,Surgery,Antibiotics,4,50,20,Yes,60
+2026-05-03,Oncology,Analgesics,45,40,5,No,30
+2026-05-04,Cardiology,Antibiotics,28,35,10,No,42
+2026-05-04,Orthopaedics,Cardiovascular,74,20,4,No,38
+2026-05-05,Surgery,Analgesics,18,55,15,No,58
